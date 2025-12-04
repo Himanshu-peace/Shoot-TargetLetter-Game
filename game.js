@@ -1,11 +1,8 @@
-// Scales everything based on screen size
-// Background fills the whole screen
-// Bow scales to 20% of screen width
-// Balloons scale to 12% of screen width
-// Arrow scales to 8% of screen width
-// Confetti sprite sheet loaded and ready
-
-
+// ✔ Single tap → nothing
+// ✔ Double-tap → Aiming begins (arrow attaches to bow)
+// ✔ Drag finger → Bow rotates & arrow follows direction
+// ✔ Release → Arrow fires physically into that direction
+// ✔ Works on touchscreens & mouse
 // -------------------------------------------
 // BASIC GAME CONFIG
 // -------------------------------------------
@@ -31,6 +28,9 @@ let bow;
 let balloonsGroup;
 let exampleArrow; // Show using scale only
 let confettiAnimReady = false;
+let isAiming = false;
+let lastTapTime = 0;
+let aimArrow = null;   // arrow that stays with bow during aim
 
 // -------------------------------------------
 // PRELOAD (LOAD ASSETS)
@@ -38,7 +38,7 @@ let confettiAnimReady = false;
 function preload() {
 
     // ------------------- IMAGES -------------------
-    this.load.image("background", "assets/sky-background2.png");        // 1080×1080
+    this.load.image("background", "assets/sky-background1.png");        // 1080×1080
     this.load.image("balloon", "assets/balloon-removebg-preview.png"); // 256×256
     this.load.image("bow", "assets/bow-removebg-preview.png");         // 300×300
     this.load.image("arrow", "assets/arrow-removebg.png");             // 80×80
@@ -81,7 +81,7 @@ function create() {
       Bow original dimensions: 300×300
       We want bow width ≈ 20% of screen width
     */
-    let bowScale = (this.scale.width * 0.20) / 300;
+    let bowScale = (this.scale.width * 0.20) / 300;    //this keyword is used to access the current scene
     bow.setScale(bowScale);
 
 
@@ -89,23 +89,23 @@ function create() {
     balloonsGroup = this.physics.add.group();
 
     spawnBalloon.call(this, 200, 200, "Da");
+    spawnBalloon.call(this,  500, 150, "moon");
     spawnBalloon.call(this, this.scale.width - 200, 300, "Meem");
-    spawnBalloon.call(this, this.scale.width / 2, 150, "Noon");
-
+    spawnBalloon.call(this, this.scale.width / 2, 150, "Noon")
 
     // ------------------- ARROW EXAMPLE SCALING -------------------
-    exampleArrow = this.add.image(
-        bow.x,
-        bow.y - 120,
-        "arrow"
-    ).setOrigin(0.5);
+    // exampleArrow = this.add.image(
+    //     bow.x,
+    //     bow.y - 120,
+    //     "arrow"
+    // ).setOrigin(0.5);
 
     /*
       Arrow original: 80×80  
       Desired: ~8% of screen width
     */
-    let arrowScale = (this.scale.width * 0.08) / 80;
-    exampleArrow.setScale(arrowScale);
+    // let arrowScale = (this.scale.width * 0.08) / 80;
+    // exampleArrow.setScale(arrowScale);
 
 
     // ------------------- CONFETTI ANIMATION -------------------
@@ -119,6 +119,33 @@ function create() {
     });
 
     confettiAnimReady = true;
+
+    // -----------------------------------
+// TOUCH / POINTER INPUT
+// -----------------------------------
+this.input.on('pointerdown', (pointer) => {
+    
+    // Detect double-tap
+    let currentTime = this.time.now;
+    if (currentTime - lastTapTime < 300) {
+        // DOUBLE-TAP detected
+        startAiming(pointer, this);
+    }
+    lastTapTime = currentTime;
+});
+
+this.input.on('pointermove', (pointer) => {
+    if (isAiming) {
+        rotateBowToward(pointer);
+    }
+});
+
+this.input.on('pointerup', (pointer) => {
+    if (isAiming) {
+        fireArrow(pointer, this);
+    }
+});
+
 }
 
 // -------------------------------------------
@@ -126,22 +153,72 @@ function create() {
 // -------------------------------------------
 function update() {
     // Nothing here yet — this step is ONLY for asset scaling & placement
+    balloonsGroup.getChildren().forEach(balloon => {
+        
+        // Move balloon
+        balloon.x += balloon.moveX;
+        balloon.y += balloon.moveY;
+
+        // Move its label with it
+        balloon.letterText.x = balloon.x;
+        balloon.letterText.y = balloon.y;
+
+        // ------------------------------
+        // WRAP AROUND SCREEN EDGES
+        // ------------------------------
+        const w = this.scale.width;
+        const h = this.scale.height;
+
+        if (balloon.x > w + 50) balloon.x = -50;
+        if (balloon.x < -50) balloon.x = w + 50;
+
+        if (balloon.y > h + 50) balloon.y = -50;
+        if (balloon.y < -50) balloon.y = h + 50;
+
+        // Keep text aligned with wrapped balloon
+        balloon.letterText.x = balloon.x;
+        balloon.letterText.y = balloon.y;
+    });
 }
 
 // -------------------------------------------
 // BALLOON SPAWNER (WITH LETTER TEXT)
 // -------------------------------------------
+// function spawnBalloon(x, y, letterName) {
+//     const balloon = this.add.image(x, y, "balloon").setOrigin(0.5);
+
+//     /*
+//       Balloon original: 256×256
+//       Desired scale: 12% of screen width
+//     */
+//     let balloonScale = (this.scale.width * 0.12) / 256;
+//     balloon.setScale(balloonScale);
+
+//     // Add letter label on balloon
+//     let text = this.add.text(x, y, letterName, {
+//         fontFamily: "Arial",
+//         fontSize: `${24 * balloonScale}px`,
+//         color: "#000",
+//         fontStyle: "bold"
+//     }).setOrigin(0.5);
+
+//     // Group balloon & text together
+//     balloonsGroup.add(balloon);
+// }
+
 function spawnBalloon(x, y, letterName) {
     const balloon = this.add.image(x, y, "balloon").setOrigin(0.5);
 
-    /*
-      Balloon original: 256×256
-      Desired scale: 12% of screen width
-    */
+    // Scale balloon (same as before)
     let balloonScale = (this.scale.width * 0.12) / 256;
     balloon.setScale(balloonScale);
 
-    // Add letter label on balloon
+    // Add the balloon to group
+    balloonsGroup.add(balloon);
+
+    // ------------------------------
+    // LETTER LABEL
+    // ------------------------------
     let text = this.add.text(x, y, letterName, {
         fontFamily: "Arial",
         fontSize: `${24 * balloonScale}px`,
@@ -149,6 +226,90 @@ function spawnBalloon(x, y, letterName) {
         fontStyle: "bold"
     }).setOrigin(0.5);
 
-    // Group balloon & text together
-    balloonsGroup.add(balloon);
+    // Attach text to balloon object
+    balloon.letterText = text;
+
+
+    // ------------------------------
+    // RANDOM FLOATING MOVEMENT
+    // ------------------------------
+
+    // Random direction (-1, 1)
+    const dirX = Phaser.Math.Between(-1, 1) === 0 ? 1 : -1;
+    const dirY = Phaser.Math.Between(-1, 1) === 0 ? 1 : -1;
+
+    // Random slow speed (good for kids)
+    const speed = Phaser.Math.FloatBetween(0.2, 0.5);
+
+    balloon.moveX = dirX * speed;
+    balloon.moveY = dirY * speed;
 }
+
+
+// -----------------------------------
+// START AIMING
+// -----------------------------------
+function startAiming(pointer, scene) {
+    isAiming = true;
+
+    if (aimArrow) aimArrow.destroy();
+
+    aimArrow = scene.add.image(bow.x, bow.y, "arrow").setOrigin(0.5);
+
+    let arrowScale = (scene.scale.width * 0.08) / 80;
+    aimArrow.setScale(arrowScale);
+
+    // Rotation fix: PNG points UP, but Phaser expects arrow to point RIGHT
+    aimArrow.rotation = -Math.PI / 2;
+
+    rotateBowToward(pointer);
+}
+
+
+
+// -----------------------------------
+// ROTATE BOW TOWARD POINTER
+// -----------------------------------
+function rotateBowToward(pointer) {
+    const dx = pointer.x - bow.x;
+    const dy = pointer.y - bow.y;
+    const angle = Math.atan2(dy, dx); // This angle assumes arrow points RIGHT
+
+    // If bow PNG points UP by default, add +90 degrees
+    bow.rotation = angle + Math.PI / 2;
+
+    if (aimArrow) {
+        aimArrow.x = bow.x;
+        aimArrow.y = bow.y;
+
+        // Arrow should match the firing angle correctly
+        aimArrow.rotation = angle;
+    }
+}
+
+
+// -----------------------------------
+// FIRE ARROW ON RELEASE
+// -----------------------------------
+function fireArrow(pointer, scene) {
+    isAiming = false;
+    if (!aimArrow) return; 
+
+    const angle = aimArrow.rotation;
+
+    const realArrow = scene.physics.add.image(bow.x, bow.y, "arrow")
+        .setOrigin(0.5)
+        .setScale(aimArrow.scale)
+        .setRotation(angle);
+
+    const speed = scene.scale.width * 1.2;
+    realArrow.setVelocity(
+        Math.cos(angle) * speed,
+        Math.sin(angle) * speed
+    );
+
+    aimArrow.destroy();
+    aimArrow = null;
+}
+
+
