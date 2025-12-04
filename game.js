@@ -94,6 +94,7 @@ function create() {
     spawnBalloon.call(this, this.scale.width / 2, 150, "Noon")
 
     // ------------------- ARROW EXAMPLE SCALING -------------------
+    //not needed on the screen arrow should be coming from bow only
     // exampleArrow = this.add.image(
     //     bow.x,
     //     bow.y - 120,
