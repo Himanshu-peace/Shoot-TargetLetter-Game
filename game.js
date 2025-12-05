@@ -1,7 +1,14 @@
 const config = {
     type: Phaser.AUTO,
-    width: window.innerWidth,
-    height: window.innerHeight,
+    scale: {
+        mode: Phaser.Scale.RESIZE,
+        // autoCenter: Phaser.Scale.CENTER_BOTH
+        // parent:null,
+        width:window.innerWidth,
+        height:window.innerHeight
+    },
+    // width: window.innerWidth,
+    // height: window.innerHeight,
     physics: { 
         default: "arcade" 
     },
@@ -56,8 +63,8 @@ function preload() {
 function create() {
 
     //bg image
-    let bg = this.add.image(0, 0, "background").setOrigin(0, 0);
-    bg.setDisplaySize(this.scale.width, this.scale.height);          //scale bg to fit screen
+    this.background= this.add.image(0, 0, "background").setOrigin(0, 0);
+    this.background.setDisplaySize(this.scale.width, this.scale.height);          //scale bg to fit screen
 
 
     //BOW SCALING
@@ -157,7 +164,53 @@ function create() {
         balloonsGroup,
         (arrow, balloon) => handleArrowHit(arrow, balloon ,this)
     );
+
+    //resize the game
+    this.scale.on("resize", (gameSize) => {
+        resizeGame(this, gameSize);
+    });
+
 }
+
+function resizeGame(scene, gameSize) {
+    let width = gameSize.width;
+    let height = gameSize.height;
+
+    // Resize background
+    if (scene.background) {
+        scene.background.setDisplaySize(width, height);
+    }
+
+    // Reposition bow
+    if (bow) {
+        bow.x = width / 2;
+        bow.y = height - (height * 0.15);
+
+        let bowScale = (width * 0.20) / 300;
+        bow.setScale(bowScale);
+    }
+
+    // Reposition UI texts
+    if (targetText) {
+        targetText.x = width / 2;
+        targetText.y = 50;
+        targetText.setFontSize(width * 0.04);
+    }
+
+    if (hitCounterText) {
+        hitCounterText.x = width - 40;
+        hitCounterText.y = 40;
+        hitCounterText.setFontSize(width * 0.035);
+    }
+
+    // Rescale all balloons
+    balloonsGroup.getChildren().forEach(balloon => {
+        let balloonScale = (width * 0.12) / 256;
+        balloon.setScale(balloonScale);
+        balloon.body.setCircle((256 * balloonScale) / 2);
+    });
+}
+
 
 // UPDATE loop function
 function update() {
