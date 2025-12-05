@@ -1,8 +1,4 @@
-// ✔ Single tap → nothing
-// ✔ Double-tap → Aiming begins (arrow attaches to bow)
-// ✔ Drag finger → Bow rotates & arrow follows direction
-// ✔ Release → Arrow fires physically into that direction
-// ✔ Works on touchscreens & mouse
+//-----------collision-Branch-------------------
 // -------------------------------------------
 // BASIC GAME CONFIG
 // -------------------------------------------
@@ -31,6 +27,10 @@ let confettiAnimReady = false;
 let isAiming = false;
 let lastTapTime = 0;
 let aimArrow = null;   // arrow that stays with bow during aim
+let arrowGroup;
+
+let sceneTargetLetter;     // <-- added
+let targetText;            // <-- added
 
 // -------------------------------------------
 // PRELOAD (LOAD ASSETS)
@@ -52,9 +52,10 @@ function preload() {
     // ------------------- SOUNDS -------------------
     this.load.audio("correct", "assets/correct.mp3");
     this.load.audio("wrong", "assets/wrong.mp3");
-    this.load.audio("yay", "assets/yay.mp3");
+    this.load.audio("yay", "assets/yay-sound.mp3");
     this.load.audio("bubblepop", "assets/bubble-pop-sound.mp3");
     this.load.audio("victory", "assets/victory.mp3");
+    this.load.audio("confettiPop", "assets/applause-sound.mp3");
 }
 
 // -------------------------------------------
@@ -88,64 +89,85 @@ function create() {
     // ------------------- BALLOON GROUP -------------------
     balloonsGroup = this.physics.add.group();
 
+    //test balloons
     spawnBalloon.call(this, 200, 200, "Da");
     spawnBalloon.call(this,  500, 150, "moon");
     spawnBalloon.call(this, this.scale.width - 200, 300, "Meem");
     spawnBalloon.call(this, this.scale.width / 2, 150, "Noon")
 
-    // ------------------- ARROW EXAMPLE SCALING -------------------
-    //not needed on the screen arrow should be coming from bow only
-    // exampleArrow = this.add.image(
-    //     bow.x,
-    //     bow.y - 120,
-    //     "arrow"
-    // ).setOrigin(0.5);
+    // ------------------- CONFETTI ANIMATION -Fix------------------
+this.anims.create({
+    key: "confettiPop",
+    frames: this.anims.generateFrameNumbers("confetti", { start: 0, end: 15 }),
+    frameRate: 24,
+    repeat: 0,
+    hideOnComplete: true
+});
 
-    /*
-      Arrow original: 80×80  
-      Desired: ~8% of screen width
-    */
-    // let arrowScale = (this.scale.width * 0.08) / 80;
-    // exampleArrow.setScale(arrowScale);
-
-
-    // ------------------- CONFETTI ANIMATION -------------------
-    this.anims.create({
-        key: "confettiPop",
-        frames: this.anims.generateFrameNumbers("confetti", {
-            start: 0, end: 15
-        }),
-        frameRate: 20,
-        hideOnComplete: true
-    });
 
     confettiAnimReady = true;
 
+    arrowGroup = this.physics.add.group();
+
+    // -------------------------------------------
+    // ADD TARGET LETTER (NEW)
+    // -------------------------------------------
+    sceneTargetLetter = "Meem";  // using your test target
+
+    targetText = this.add.text(
+        this.scale.width / 2,
+        50,
+        "🎯 Target Letter: " + sceneTargetLetter,
+        {
+            fontFamily: "Arial",
+            fontSize: `${this.scale.width * 0.04}px`,
+            color: "#fff",
+            fontStyle: "bold",
+            backgroundColor: "rgba(0,0,0,0.3)",
+            padding: { x: 20, y: 10 }
+        }
+    ).setOrigin(0.5);
+
     // -----------------------------------
-// TOUCH / POINTER INPUT
-// -----------------------------------
-this.input.on('pointerdown', (pointer) => {
-    
-    // Detect double-tap
-    let currentTime = this.time.now;
-    if (currentTime - lastTapTime < 300) {
-        // DOUBLE-TAP detected
-        startAiming(pointer, this);
-    }
-    lastTapTime = currentTime;
-});
+    // TOUCH / POINTER INPUT
+    // -----------------------------------
+    this.input.on('pointerdown', (pointer) => {
+        
+        // Detect double-tap
+        let currentTime = this.time.now;
+        if (currentTime - lastTapTime < 300) {
+            // DOUBLE-TAP detected
+            startAiming(pointer, this);
+        }
+        lastTapTime = currentTime;
+    });
 
-this.input.on('pointermove', (pointer) => {
-    if (isAiming) {
-        rotateBowToward(pointer);
-    }
-});
+    this.input.on('pointermove', (pointer) => {
+        if (isAiming) {
+            rotateBowToward(pointer);
+        }
+    });
 
-this.input.on('pointerup', (pointer) => {
-    if (isAiming) {
-        fireArrow(pointer, this);
-    }
-});
+    this.input.on('pointerup', (pointer) => {
+        if (isAiming) {
+            fireArrow(pointer, this);
+        }
+    });
+
+    // -------------------------------------------
+    // ENABLE ARROW → BALLOON COLLISION HANDLER
+    // -------------------------------------------
+    this.physics.add.overlap(
+        arrowGroup,
+        balloonsGroup,
+        (arrow, balloon) => handleArrowHit(arrow, balloon ,this)
+    );
+
+    //testing confetti
+    // this.input.once("pointerdown", () => {
+    //     createConfetti(this.scale.width/2, this.scale.height/2, this);
+    //     this.sound.play("confettiPop");
+    // });
 
 }
 
@@ -185,31 +207,9 @@ function update() {
 // -------------------------------------------
 // BALLOON SPAWNER (WITH LETTER TEXT)
 // -------------------------------------------
-// function spawnBalloon(x, y, letterName) {
-//     const balloon = this.add.image(x, y, "balloon").setOrigin(0.5);
-
-//     /*
-//       Balloon original: 256×256
-//       Desired scale: 12% of screen width
-//     */
-//     let balloonScale = (this.scale.width * 0.12) / 256;
-//     balloon.setScale(balloonScale);
-
-//     // Add letter label on balloon
-//     let text = this.add.text(x, y, letterName, {
-//         fontFamily: "Arial",
-//         fontSize: `${24 * balloonScale}px`,
-//         color: "#000",
-//         fontStyle: "bold"
-//     }).setOrigin(0.5);
-
-//     // Group balloon & text together
-//     balloonsGroup.add(balloon);
-// }
-
 function spawnBalloon(x, y, letterName) {
     const balloon = this.add.image(x, y, "balloon").setOrigin(0.5);
-
+    
     // Scale balloon (same as before)
     let balloonScale = (this.scale.width * 0.12) / 256;
     balloon.setScale(balloonScale);
@@ -230,11 +230,20 @@ function spawnBalloon(x, y, letterName) {
     // Attach text to balloon object
     balloon.letterText = text;
 
+    // -------------------------------------------
+    // FIX BALLOON HITBOX (NEW)
+    // -------------------------------------------
+    this.physics.add.existing(balloon);
+    balloon.body.setCircle((256 * balloonScale) / 2);
+
+    balloon.body.setOffset(
+        (balloon.displayWidth - (256 * balloonScale)) / 2,
+        (balloon.displayHeight - (256 * balloonScale)) / 2
+    );
 
     // ------------------------------
     // RANDOM FLOATING MOVEMENT
     // ------------------------------
-
     // Random direction (-1, 1)
     const dirX = Phaser.Math.Between(-1, 1) === 0 ? 1 : -1;
     const dirY = Phaser.Math.Between(-1, 1) === 0 ? 1 : -1;
@@ -264,7 +273,7 @@ function startAiming(pointer, scene) {
     aimArrow.rotation = -Math.PI / 2;
 
     rotateBowToward(pointer);
-}
+};
 
 
 
@@ -298,10 +307,23 @@ function fireArrow(pointer, scene) {
 
     const angle = aimArrow.rotation;
 
-    const realArrow = scene.physics.add.image(bow.x, bow.y, "arrow")
+        // Spawn arrow at bow TIP
+    const offset = bow.displayWidth * 0.35;
+    const startX = bow.x + Math.cos(angle) * offset;
+    const startY = bow.y + Math.sin(angle) * offset;
+
+    const realArrow = scene.physics.add.image(bow.x, bow.y, "arrow")    // arrow points RIGHT
         .setOrigin(0.5)
         .setScale(aimArrow.scale)
         .setRotation(angle);
+
+    arrowGroup.add(realArrow);
+
+    // FIX ARROW HITBOX
+    realArrow.body.setSize(
+        realArrow.displayWidth * 0.6,
+        realArrow.displayHeight * 0.3
+    );
 
     const speed = scene.scale.width * 1.2;
     realArrow.setVelocity(
@@ -309,8 +331,78 @@ function fireArrow(pointer, scene) {
         Math.sin(angle) * speed
     );
 
+        // Auto-destroy when off-screen
+    // realArrow.setCollideWorldBounds(false);
+    scene.time.delayedCall(3000, () => {
+        if (realArrow && realArrow.active) realArrow.destroy();
+    });
+
     aimArrow.destroy();
     aimArrow = null;
 }
 
+// -----------------------------------
+// HANDLE ARROW HIT co
+// -----------------------------------
+function handleArrowHit(arrow, balloon, scene) {
 
+    if (!balloon.active || !arrow.active) return;
+
+    // Remove arrow immediately
+    arrow.destroy();
+
+    const targetLetter = "Meem"; // <— for testing; will become dynamic later
+
+    if (balloon.letterText.text === targetLetter) {
+        // -------------------------------
+        // CORRECT HIT
+        // -------------------------------
+        scene.sound.play("bubblepop");
+        // scene.sound.play("correct");
+        scene.sound.play("yay");
+
+        //debugger point
+        // console.log(scene.textures.get("confetti").frameTotal); // 16 frames for confetti Testing
+        createConfetti(balloon.x, balloon.y, scene);
+
+        // remove balloon
+        balloon.letterText.destroy();
+        balloon.destroy();
+
+    } else {
+        // -------------------------------
+        // WRONG HIT → wiggle balloon
+        // -------------------------------
+        scene.sound.play("wrong");
+
+        scene.tweens.add({
+            targets: [balloon, balloon.letterText],
+            x: balloon.x + 15,
+            duration: 80,
+            yoyo: true,
+            repeat: 2
+        });
+    }
+}
+
+// -----------------------------------
+// CREATE CONFETTI
+// -----------------------------------
+function createConfetti(x, y, scene) {
+
+    const scaleSize = (scene.scale.width * 0.25) / 128;
+
+    const spr = scene.add.sprite(x, y, "confetti")
+        .setScale(scaleSize)
+        .setOrigin(0.5)
+        .setDepth(9999);
+
+    spr.play("confettiPop");
+
+    spr.on("animationcomplete", () => {
+        spr.destroy();
+    });
+}
+
+// 17 frames logging to console
+// favicon.ico:1  GET http://127.0.0.1:5500/favicon.ico 404 (Not Found)
