@@ -28,15 +28,21 @@ let isAiming = false;
 let lastTapTime = 0;
 let aimArrow = null;   // arrow that stays with bow during aim
 let arrowGroup;
+let sceneTargetLetter;
+let targetText;            
+let hitCounter = 0;          // total correct hits
+let streakCounter = 0;       // consecutive correct hits
+let hitCounterText;          // UI text
+let possibleLetters = ["A",  "B", "C", "D", "E", "f"];
+let winPopup = null;
+let losePopup = null;
+let gameFrozen = false;  // stop gameplay until restart
 
-let sceneTargetLetter;     // <-- added
-let targetText;            // <-- added
 
 // -------------------------------------------
 // PRELOAD (LOAD ASSETS)
 // -------------------------------------------
 function preload() {
-
     // ------------------- IMAGES -------------------
     this.load.image("background", "assets/sky-background1.png");        // 1080×1080
     this.load.image("balloon", "assets/balloon-removebg-preview.png"); // 256×256
@@ -89,20 +95,24 @@ function create() {
     // ------------------- BALLOON GROUP -------------------
     balloonsGroup = this.physics.add.group();
 
-    //test balloons
-    spawnBalloon.call(this, 200, 200, "Da");
-    spawnBalloon.call(this,  500, 150, "moon");
-    spawnBalloon.call(this, this.scale.width - 200, 300, "Meem");
-    spawnBalloon.call(this, this.scale.width / 2, 150, "Noon")
+    // ------------- SPAWN 6 BALLOONS WITH UNIQUE LETTERS -------------
+    Phaser.Utils.Array.Shuffle(possibleLetters); // random 8 words
 
-    // ------------------- CONFETTI ANIMATION -Fix------------------
-this.anims.create({
-    key: "confettiPop",
-    frames: this.anims.generateFrameNumbers("confetti", { start: 0, end: 15 }),
-    frameRate: 24,
-    repeat: 0,
-    hideOnComplete: true
-});
+    for (let i = 0; i < 6; i++) {
+        let bx = Phaser.Math.Between(100, this.scale.width - 100);
+        let by = Phaser.Math.Between(100, this.scale.height - 200);
+        spawnBalloon.call(this, bx, by, possibleLetters[i]);
+    }
+
+
+        // ------------------- CONFETTI ANIMATION -Fix------------------
+    this.anims.create({
+        key: "confettiPop",
+        frames: this.anims.generateFrameNumbers("confetti", { start: 0, end: 15 }),
+        frameRate: 24,
+        repeat: 0,
+        hideOnComplete: true
+    });
 
 
     confettiAnimReady = true;
@@ -112,7 +122,7 @@ this.anims.create({
     // -------------------------------------------
     // ADD TARGET LETTER (NEW)
     // -------------------------------------------
-    sceneTargetLetter = "Meem";  // using your test target
+    sceneTargetLetter = "A";  // using your test target
 
     targetText = this.add.text(
         this.scale.width / 2,
@@ -127,6 +137,22 @@ this.anims.create({
             padding: { x: 20, y: 10 }
         }
     ).setOrigin(0.5);
+
+    // ---------- SUCCESS HIT COUNTER (top-right) ----------
+    hitCounterText = this.add.text(
+        this.scale.width - 40,
+        40,
+        "Hits: 0",
+        {
+            fontFamily: "Arial",
+            fontSize: `${this.scale.width * 0.035}px`,
+            color: "#fff",
+            fontStyle: "bold",
+            backgroundColor: "rgba(0,0,0,0.3)",
+            padding: { x: 20, y: 10 }
+        }
+    ).setOrigin(1, 0.5);
+
 
     // -----------------------------------
     // TOUCH / POINTER INPUT
@@ -175,32 +201,62 @@ this.anims.create({
 // UPDATE LOOP
 // -------------------------------------------
 function update() {
+    if (gameFrozen) return;
+
     // Nothing here yet — this step is ONLY for asset scaling & placement
     balloonsGroup.getChildren().forEach(balloon => {
-        
+
         // Move balloon
         balloon.x += balloon.moveX;
         balloon.y += balloon.moveY;
 
-        // Move its label with it
-        balloon.letterText.x = balloon.x;
-        balloon.letterText.y = balloon.y;
-
-        // ------------------------------
-        // WRAP AROUND SCREEN EDGES
-        // ------------------------------
+        // Prevent leaving screen
         const w = this.scale.width;
         const h = this.scale.height;
 
-        if (balloon.x > w + 50) balloon.x = -50;
-        if (balloon.x < -50) balloon.x = w + 50;
+        if (balloon.x < balloon.displayWidth/2) {
+            balloon.x = balloon.displayWidth/2;
+            balloon.moveX *= -1;
+        }
+        if (balloon.x > w - balloon.displayWidth/2) {
+            balloon.x = w - balloon.displayWidth/2;
+            balloon.moveX *= -1;
+        }
 
-        if (balloon.y > h + 50) balloon.y = -50;
-        if (balloon.y < -50) balloon.y = h + 50;
+        if (balloon.y < balloon.displayHeight/2) {
+            balloon.y = balloon.displayHeight/2;
+            balloon.moveY *= -1;
+        }
+        if (balloon.y > h - balloon.displayHeight/2 - 120) {
+            balloon.y = h - balloon.displayHeight/2 - 120;
+            balloon.moveY *= -1;
+        }
 
-        // Keep text aligned with wrapped balloon
+        // keep text synced
         balloon.letterText.x = balloon.x;
         balloon.letterText.y = balloon.y;
+
+        // -----------------------
+        // KEEP AWAY FROM BOW AREA
+        // -----------------------
+        const safeRadius = this.scale.height * 0.10;   // distance balloons must stay away
+        const dx = balloon.x - bow.x;
+        const dy = balloon.y - bow.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+
+        if (dist < safeRadius) {
+            // push balloon away
+            const angle = Math.atan2(dy, dx);
+            const pushSpeed = 1.5;
+
+            balloon.x += Math.cos(angle) * pushSpeed * 3;
+            balloon.y += Math.sin(angle) * pushSpeed * 3;
+
+            // reverse movement direction
+            balloon.moveX = Math.cos(angle) * pushSpeed;
+            balloon.moveY = Math.sin(angle) * pushSpeed;
+        }
+
     });
 }
 
@@ -352,37 +408,60 @@ function fireArrow(pointer, scene) {
 }
 
 // -----------------------------------
-// HANDLE ARROW HIT co
+// HANDLE ARROW HIT collision
 // -----------------------------------
 function handleArrowHit(arrow, balloon, scene) {
 
     if (!balloon.active || !arrow.active) return;
 
-    // Remove arrow immediately
     arrow.destroy();
 
-    const targetLetter = "Meem"; // <— for testing; will become dynamic later
+    const isCorrect = (balloon.letterText.text === sceneTargetLetter);
 
-    if (balloon.letterText.text === targetLetter) {
-        // -------------------------------
+    if (isCorrect) {
+        //----------------------------------
         // CORRECT HIT
-        // -------------------------------
+        //----------------------------------
         scene.sound.play("bubblepop");
-        scene.sound.play("correct");
+        // scene.sound.play("correct");
 
-        //debugger point
-        // console.log(scene.textures.get("confetti").frameTotal); // 16 frames for confetti Testing
         createConfetti(balloon.x, balloon.y, scene);
 
-        // remove balloon
         balloon.letterText.destroy();
         balloon.destroy();
 
+        // -----------------------
+        // UPDATE COUNTERS
+        // -----------------------
+        hitCounter++;
+        streakCounter++;
+        hitCounterText.setText("Hits: " + hitCounter);
+
+        // -----------------------
+        // CHANGE TARGET LETTER
+        // -----------------------
+        chooseNewTarget(scene);
+
+        // -----------------------
+        // 5-HIT STREAK = Celebration
+        // -----------------------
+        if (streakCounter >= 5) {
+            createConfetti(scene.scale.width / 2, scene.scale.height / 2, scene);
+            scene.sound.play("victory");
+            streakCounter = 0;
+
+            showWinPopup(scene); // <-- show message
+        }
+
     } else {
-        // -------------------------------
-        // WRONG HIT → wiggle balloon
-        // -------------------------------
+        //----------------------------------
+        // WRONG HIT
+        //----------------------------------
         scene.sound.play("wrong");
+
+        streakCounter = 0; // reset streak
+
+        showFailPopup(scene); // THIS WILL ASK THE PLAYER TO RESTART
 
         scene.tweens.add({
             targets: [balloon, balloon.letterText],
@@ -394,9 +473,98 @@ function handleArrowHit(arrow, balloon, scene) {
     }
 }
 
-// -----------------------------------
+function chooseNewTarget(scene) {
+    // pick any existing balloon's text as new target
+    let available = balloonsGroup.getChildren().filter(b => b.active);
+
+    if (available.length === 0) return;
+
+    let randomBalloon = Phaser.Utils.Array.GetRandom(available);
+
+    sceneTargetLetter = randomBalloon.letterText.text;
+
+    targetText.setText("🎯 Target Letter: " + sceneTargetLetter);
+}
+
+//SUCCESS POPPING 5 BALLOONS
+function showWinPopup(scene) {
+    gameFrozen = true;
+
+    winPopup = scene.add.text(
+        scene.scale.width / 2,
+        scene.scale.height / 2,
+        "🎉 CONGRATULATIONS! 🎉\nYou got 5 correct hits!\n\nTap anywhere or press SPACE to restart",
+        {
+            fontFamily: "Arial",
+            fontSize: `${scene.scale.width * 0.05}px`,
+            color: "#fff",
+            fontStyle: "bold",
+            align: "center",
+            backgroundColor: "rgba(0,0,0,0.6)",
+            padding: { x: 40, y: 40 }
+        }
+    ).setOrigin(0.5).setDepth(99999);
+
+    // Input to restart
+    scene.input.once("pointerdown", () => restartGame(scene));
+    scene.input.keyboard.once("keydown-SPACE", () => restartGame(scene));
+}
+
+
+//FAIL TO POP 5 BALLOONS
+function showFailPopup(scene) {
+    gameFrozen = true;
+
+    losePopup = scene.add.text(
+        scene.scale.width / 2,
+        scene.scale.height / 2,
+        "❌ Wrong Balloon!\nYour 5-hit streak was broken.\nTap to try again",
+        {
+            fontFamily: "Arial",
+            fontSize: `${scene.scale.width * 0.045}px`,
+            color: "#fff",
+            fontStyle: "bold",
+            align: "center",
+            backgroundColor: "rgba(0,0,0,0.6)",
+            padding: { x: 40, y: 40 }
+        }
+    ).setOrigin(0.5).setDepth(99999);
+
+    // Input to restart
+    scene.input.once("pointerdown", () => restartGame(scene));
+    scene.input.keyboard.once("keydown-SPACE", () => restartGame(scene));
+}
+
+// RESTART THE GAME 
+function restartGame(scene) {
+    gameFrozen = false;
+    hitCounter = 0;
+    streakCounter = 0;
+
+    if (winPopup) winPopup.destroy();
+    if (losePopup) losePopup.destroy();
+
+    hitCounterText.setText("Hits: 0");
+
+    // Destroy all balloons + balloon texts + arrows on restart
+    balloonsGroup.getChildren().forEach(b => {
+        if (b.letterText) b.letterText.destroy();
+    });
+    balloonsGroup.clear(true, true);
+    arrowGroup.clear(true, true);
+
+    // Respawn all balloons at restart
+    Phaser.Utils.Array.Shuffle(possibleLetters);
+    for (let i = 0; i < 6; i++) {
+        let bx = Phaser.Math.Between(100, scene.scale.width - 100);
+        let by = Phaser.Math.Between(100, scene.scale.height - 200);
+        spawnBalloon.call(scene, bx, by, possibleLetters[i]);
+    }
+
+    chooseNewTarget(scene); // New target
+}
+
 // CREATE CONFETTI
-// -----------------------------------
 function createConfetti(x, y, scene) {
 
     const scaleSize = (scene.scale.width * 0.25) / 128;
@@ -406,7 +574,8 @@ function createConfetti(x, y, scene) {
         .setOrigin(0.5)
         .setDepth(9999);
 
-    spr.play("yay");
+    spr.play("confettiPop");
+    // scene.sound.play("yay");
 
 
     spr.on("animationcomplete", () => {
