@@ -358,8 +358,7 @@ function handleArrowHit(arrow, balloon, scene) {
         // CORRECT HIT
         // -------------------------------
         scene.sound.play("bubblepop");
-        // scene.sound.play("correct");
-        scene.sound.play("yay");
+        scene.sound.play("correct");
 
         //debugger point
         // console.log(scene.textures.get("confetti").frameTotal); // 16 frames for confetti Testing
@@ -397,12 +396,10 @@ function createConfetti(x, y, scene) {
         .setOrigin(0.5)
         .setDepth(9999);
 
-    spr.play("confettiPop");
+    spr.play("yay");
+
 
     spr.on("animationcomplete", () => {
         spr.destroy();
     });
 }
-
-// 17 frames logging to console
-// favicon.ico:1  GET http://127.0.0.1:5500/favicon.ico 404 (Not Found)
