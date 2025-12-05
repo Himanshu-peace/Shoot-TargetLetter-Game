@@ -269,7 +269,7 @@ function startAiming(pointer, scene) {
 
     rotateBowToward(pointer);
 };
--
+
 // ROTATE BOW TOWARD POINTER
 function rotateBowToward(pointer) {
     const dx = pointer.x - bow.x;
