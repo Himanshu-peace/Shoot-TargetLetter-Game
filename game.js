@@ -1,8 +1,3 @@
-//-----------collision-Branch-------------------
-// -------------------------------------------
-// BASIC GAME CONFIG 
-// -------------------------------------------
-
 const config = {
     type: Phaser.AUTO,
     width: window.innerWidth,
@@ -17,12 +12,9 @@ const config = {
 
 let game = new Phaser.Game(config);
 
-// -------------------------------------------
-// VARIABLES
-// -------------------------------------------
 let bow;
 let balloonsGroup;
-let exampleArrow; // Show using scale only
+let exampleArrow; 
 let confettiAnimReady = false;
 let isAiming = false;
 let lastTapTime = 0;
@@ -30,32 +22,28 @@ let aimArrow = null;   // arrow that stays with bow during aim
 let arrowGroup;
 let sceneTargetLetter;
 let targetText;            
-let hitCounter = 0;          // total correct hits
-let streakCounter = 0;       // consecutive correct hits
-let hitCounterText;          // UI text
+let hitCounter = 0;       
+let streakCounter = 0;      
+let hitCounterText;     
 let possibleLetters = ["A",  "B", "C", "D", "E", "f"];
 let winPopup = null;
 let losePopup = null;
-let gameFrozen = false;  // stop gameplay until restart
+let gameFrozen = false;  
 
-
-// -------------------------------------------
 // PRELOAD (LOAD ASSETS)
-// -------------------------------------------
 function preload() {
-    // ------------------- IMAGES -------------------
-    this.load.image("background", "assets/sky-background1.png");        // 1080×1080
-    this.load.image("balloon", "assets/balloon-removebg-preview.png"); // 256×256
-    this.load.image("bow", "assets/bow-removebg-preview.png");         // 300×300
-    this.load.image("arrow", "assets/arrow-removebg.png");             // 80×80
+    //loading images
+    this.load.image("background", "assets/sky-background1.png");       
+    this.load.image("balloon", "assets/balloon-removebg-preview.png"); 
+    this.load.image("bow", "assets/bow-removebg-preview.png");        
+    this.load.image("arrow", "assets/arrow-removebg.png");      
 
-    // Confetti sprite sheet (16 frames, 128×128 each)
     this.load.spritesheet("confetti", "assets/confetti-sprite-removebg.png", {
         frameWidth: 128,
         frameHeight: 128
     });
 
-    // ------------------- SOUNDS -------------------
+    //loading audio
     this.load.audio("correct", "assets/correct.mp3");
     this.load.audio("wrong", "assets/wrong.mp3");
     this.load.audio("yay", "assets/yay-sound.mp3");
@@ -64,19 +52,15 @@ function preload() {
     this.load.audio("confettiPop", "assets/applause-sound.mp3");
 }
 
-// -------------------------------------------
-// CREATE (PLACE + SCALE ASSETS)
-// -------------------------------------------
+// CREATE loaded assets
 function create() {
 
-    // ------------------- BACKGROUND -------------------
+    //bg image
     let bg = this.add.image(0, 0, "background").setOrigin(0, 0);
-
-    // SCALE background full-screen regardless of aspect ratio
-    bg.setDisplaySize(this.scale.width, this.scale.height);
+    bg.setDisplaySize(this.scale.width, this.scale.height);          //scale bg to fit screen
 
 
-    // ------------------- BOW SCALING -------------------
+    //BOW SCALING
     bow = this.add.image(
         this.scale.width / 2,
         this.scale.height - (this.scale.height * 0.15),
@@ -84,18 +68,13 @@ function create() {
     );
     bow.setOrigin(0.5);
 
-    /*
-      Bow original dimensions: 300×300
-      We want bow width ≈ 20% of screen width
-    */
-    let bowScale = (this.scale.width * 0.20) / 300;    //this keyword is used to access the current scene
+    let bowScale = (this.scale.width * 0.20) / 300;    //bow width ≈ 20% of screen width
     bow.setScale(bowScale);
 
 
-    // ------------------- BALLOON GROUP -------------------
+    //ballon physics
     balloonsGroup = this.physics.add.group();
-
-    // ------------- SPAWN 6 BALLOONS WITH UNIQUE LETTERS -------------
+    //create random text ballons
     Phaser.Utils.Array.Shuffle(possibleLetters); // random 8 words
 
     for (let i = 0; i < 6; i++) {
@@ -104,8 +83,7 @@ function create() {
         spawnBalloon.call(this, bx, by, possibleLetters[i]);
     }
 
-
-        // ------------------- CONFETTI ANIMATION -Fix------------------
+    //animation
     this.anims.create({
         key: "confettiPop",
         frames: this.anims.generateFrameNumbers("confetti", { start: 0, end: 15 }),
@@ -113,15 +91,11 @@ function create() {
         repeat: 0,
         hideOnComplete: true
     });
-
-
     confettiAnimReady = true;
 
+    //group arrows
     arrowGroup = this.physics.add.group();
 
-    // -------------------------------------------
-    // ADD TARGET LETTER (NEW)
-    // -------------------------------------------
     sceneTargetLetter = "A";  // using your test target
 
     targetText = this.add.text(
@@ -138,7 +112,7 @@ function create() {
         }
     ).setOrigin(0.5);
 
-    // ---------- SUCCESS HIT COUNTER (top-right) ----------
+    //hit counter text
     hitCounterText = this.add.text(
         this.scale.width - 40,
         40,
@@ -153,10 +127,7 @@ function create() {
         }
     ).setOrigin(1, 0.5);
 
-
-    // -----------------------------------
-    // TOUCH / POINTER INPUT
-    // -----------------------------------
+    //input's
     this.input.on('pointerdown', (pointer) => {
         
         // Detect double-tap
@@ -180,46 +151,31 @@ function create() {
         }
     });
 
-    // -------------------------------------------
-    // ENABLE ARROW → BALLOON COLLISION HANDLER
-    // -------------------------------------------
+    //collision
     this.physics.add.overlap(
         arrowGroup,
         balloonsGroup,
         (arrow, balloon) => handleArrowHit(arrow, balloon ,this)
     );
-
-    //testing confetti
-    // this.input.once("pointerdown", () => {
-    //     createConfetti(this.scale.width/2, this.scale.height/2, this);
-    //     this.sound.play("confettiPop");
-    // });
-
 }
 
-// -------------------------------------------
-// UPDATE LOOP
-// -------------------------------------------
+// UPDATE loop function
 function update() {
     if (gameFrozen) return;
 
-    // Nothing here yet — this step is ONLY for asset scaling & placement
     balloonsGroup.getChildren().forEach(balloon => {
-
-        // Move balloon
+        // balloon movement 
         balloon.x += balloon.moveX;
         balloon.y += balloon.moveY;
 
-        // Prevent leaving screen
-        const w = this.scale.width;
+        const w = this.scale.width; //// Prevent leaving screen
         const h = this.scale.height;
-
         if (balloon.x < balloon.displayWidth/2) {
-            balloon.x = balloon.displayWidth/2;
+            balloon.x = balloon.displayWidth/2;           
             balloon.moveX *= -1;
         }
         if (balloon.x > w - balloon.displayWidth/2) {
-            balloon.x = w - balloon.displayWidth/2;
+            balloon.x = w - balloon.displayWidth/2;   
             balloon.moveX *= -1;
         }
 
@@ -232,27 +188,23 @@ function update() {
             balloon.moveY *= -1;
         }
 
-        // keep text synced
+        // keep text synced - inside balloon
         balloon.letterText.x = balloon.x;
         balloon.letterText.y = balloon.y;
 
-        // -----------------------
-        // KEEP AWAY FROM BOW AREA
-        // -----------------------
-        const safeRadius = this.scale.height * 0.10;   // distance balloons must stay away
+        // keep balloon away from bow
+        const safeRadius = this.scale.height * 0.10; 
         const dx = balloon.x - bow.x;
         const dy = balloon.y - bow.y;
         const dist = Math.sqrt(dx*dx + dy*dy);
 
         if (dist < safeRadius) {
-            // push balloon away
             const angle = Math.atan2(dy, dx);
             const pushSpeed = 1.5;
 
             balloon.x += Math.cos(angle) * pushSpeed * 3;
             balloon.y += Math.sin(angle) * pushSpeed * 3;
 
-            // reverse movement direction
             balloon.moveX = Math.cos(angle) * pushSpeed;
             balloon.moveY = Math.sin(angle) * pushSpeed;
         }
@@ -260,22 +212,17 @@ function update() {
     });
 }
 
-// -------------------------------------------
-// BALLOON SPAWNER (WITH LETTER TEXT)
-// -------------------------------------------
+// BALLOON SPAWNER FUNCTION
 function spawnBalloon(x, y, letterName) {
     const balloon = this.add.image(x, y, "balloon").setOrigin(0.5);
     
-    // Scale balloon (same as before)
-    let balloonScale = (this.scale.width * 0.12) / 256;
+    let balloonScale = (this.scale.width * 0.12) / 256;   // balloon size ratio
     balloon.setScale(balloonScale);
 
     // Add the balloon to group
     balloonsGroup.add(balloon);
 
-    // ------------------------------
-    // LETTER LABEL
-    // ------------------------------
+    // Add letter text inside balloon
     let text = this.add.text(x, y, letterName, {
         fontFamily: "Arial",
         fontSize: `${24 * balloonScale}px`,
@@ -286,9 +233,7 @@ function spawnBalloon(x, y, letterName) {
     // Attach text to balloon object
     balloon.letterText = text;
 
-    // -------------------------------------------
-    // FIX BALLOON HITBOX (NEW)
-    // -------------------------------------------
+    // Add balloon to physics system (setting a circle shape around the balloon)
     this.physics.add.existing(balloon);
     balloon.body.setCircle((256 * balloonScale) / 2);
 
@@ -297,24 +242,19 @@ function spawnBalloon(x, y, letterName) {
         (balloon.displayHeight - (256 * balloonScale)) / 2
     );
 
-    // ------------------------------
     // RANDOM FLOATING MOVEMENT
-    // ------------------------------
     // Random direction (-1, 1)
     const dirX = Phaser.Math.Between(-1, 1) === 0 ? 1 : -1;
     const dirY = Phaser.Math.Between(-1, 1) === 0 ? 1 : -1;
 
-    // Random slow speed (good for kids)
+    // Random slow speed
     const speed = Phaser.Math.FloatBetween(0.2, 0.5);
 
     balloon.moveX = dirX * speed;
     balloon.moveY = dirY * speed;
 }
 
-
-// -----------------------------------
-// START AIMING
-// -----------------------------------
+// Start aiming function
 function startAiming(pointer, scene) {
     isAiming = true;
 
@@ -325,35 +265,20 @@ function startAiming(pointer, scene) {
     let arrowScale = (scene.scale.width * 0.08) / 80;
     aimArrow.setScale(arrowScale);
 
-    // Rotation fix: PNG points UP, but Phaser expects arrow to point RIGHT
     aimArrow.rotation = -Math.PI / 2;
 
     rotateBowToward(pointer);
 };
-
-
-
-// -----------------------------------
+-
 // ROTATE BOW TOWARD POINTER
-// -----------------------------------
 function rotateBowToward(pointer) {
     const dx = pointer.x - bow.x;
     const dy = pointer.y - bow.y;
     const angle = Math.atan2(dy, dx); // This angle assumes arrow points RIGHT
 
-    // If bow PNG points UP by default, add +90 degrees
     bow.rotation = angle + Math.PI / 2;
 
-    // if (aimArrow) {
-    //     aimArrow.x = bow.x;
-    //     aimArrow.y = bow.y;
-
-    //     // Arrow should match the firing angle correctly
-    //     aimArrow.rotation = angle;
-    // }
-
-    if (aimArrow) {
-    // distance arrow should appear IN FRONT of bow
+    if (aimArrow) { //place arrow in front of bow
         const offset = bow.displayWidth * 0.35;
 
         aimArrow.x = bow.x + Math.cos(angle) * offset;
@@ -363,10 +288,7 @@ function rotateBowToward(pointer) {
     }
 }
 
-
-// -----------------------------------
 // FIRE ARROW ON RELEASE
-// -----------------------------------
 function fireArrow(pointer, scene) {
     isAiming = false;
     if (!aimArrow) return; 
@@ -385,7 +307,7 @@ function fireArrow(pointer, scene) {
 
     arrowGroup.add(realArrow);
 
-    // FIX ARROW HITBOX
+    // arrow hitbox size before hitting balloon
     realArrow.body.setSize(
         realArrow.displayWidth * 0.6,
         realArrow.displayHeight * 0.3
@@ -397,8 +319,6 @@ function fireArrow(pointer, scene) {
         Math.sin(angle) * speed
     );
 
-        // Auto-destroy when off-screen
-    // realArrow.setCollideWorldBounds(false);
     scene.time.delayedCall(3000, () => {
         if (realArrow && realArrow.active) realArrow.destroy();
     });
@@ -407,9 +327,7 @@ function fireArrow(pointer, scene) {
     aimArrow = null;
 }
 
-// -----------------------------------
 // HANDLE ARROW HIT collision
-// -----------------------------------
 function handleArrowHit(arrow, balloon, scene) {
 
     if (!balloon.active || !arrow.active) return;
@@ -419,9 +337,7 @@ function handleArrowHit(arrow, balloon, scene) {
     const isCorrect = (balloon.letterText.text === sceneTargetLetter);
 
     if (isCorrect) {
-        //----------------------------------
-        // CORRECT HIT
-        //----------------------------------
+        // for correct hit
         scene.sound.play("bubblepop");
         // scene.sound.play("correct");
 
@@ -430,38 +346,28 @@ function handleArrowHit(arrow, balloon, scene) {
         balloon.letterText.destroy();
         balloon.destroy();
 
-        // -----------------------
-        // UPDATE COUNTERS
-        // -----------------------
         hitCounter++;
         streakCounter++;
         hitCounterText.setText("Hits: " + hitCounter);
 
-        // -----------------------
-        // CHANGE TARGET LETTER
-        // -----------------------
-        chooseNewTarget(scene);
+        chooseNewTarget(scene); //change target letter
 
-        // -----------------------
         // 5-HIT STREAK = Celebration
-        // -----------------------
         if (streakCounter >= 5) {
             createConfetti(scene.scale.width / 2, scene.scale.height / 2, scene);
             scene.sound.play("victory");
             streakCounter = 0;
 
-            showWinPopup(scene); // <-- show message
+            showWinPopup(scene); 
         }
 
     } else {
-        //----------------------------------
         // WRONG HIT
-        //----------------------------------
         scene.sound.play("wrong");
 
-        streakCounter = 0; // reset streak
+        streakCounter = 0;
 
-        showFailPopup(scene); // THIS WILL ASK THE PLAYER TO RESTART
+        showFailPopup(scene);
 
         scene.tweens.add({
             targets: [balloon, balloon.letterText],
@@ -474,7 +380,6 @@ function handleArrowHit(arrow, balloon, scene) {
 }
 
 function chooseNewTarget(scene) {
-    // pick any existing balloon's text as new target
     let available = balloonsGroup.getChildren().filter(b => b.active);
 
     if (available.length === 0) return;
@@ -546,7 +451,7 @@ function restartGame(scene) {
 
     hitCounterText.setText("Hits: 0");
 
-    // Destroy all balloons + balloon texts + arrows on restart
+    //destroy all objects
     balloonsGroup.getChildren().forEach(b => {
         if (b.letterText) b.letterText.destroy();
     });
@@ -564,7 +469,7 @@ function restartGame(scene) {
     chooseNewTarget(scene); // New target
 }
 
-// CREATE CONFETTI
+//confetti
 function createConfetti(x, y, scene) {
 
     const scaleSize = (scene.scale.width * 0.25) / 128;
