@@ -1,10 +1,5 @@
-// ✔ Single tap → nothing
-// ✔ Double-tap → Aiming begins (arrow attaches to bow)
-// ✔ Drag finger → Bow rotates & arrow follows direction
-// ✔ Release → Arrow fires physically into that direction
-// ✔ Works on touchscreens & mouse
 // -------------------------------------------
-// BASIC GAME CONFIG
+// BASIC GAME CONFIG 
 // -------------------------------------------
 
 const config = {
@@ -279,11 +274,21 @@ function rotateBowToward(pointer) {
     // If bow PNG points UP by default, add +90 degrees
     bow.rotation = angle + Math.PI / 2;
 
-    if (aimArrow) {
-        aimArrow.x = bow.x;
-        aimArrow.y = bow.y;
+    // if (aimArrow) {
+    //     aimArrow.x = bow.x;
+    //     aimArrow.y = bow.y;
 
-        // Arrow should match the firing angle correctly
+    //     // Arrow should match the firing angle correctly
+    //     aimArrow.rotation = angle;
+    // }
+
+    if (aimArrow) {
+    // distance arrow should appear IN FRONT of bow
+        const offset = bow.displayWidth * 0.35;
+
+        aimArrow.x = bow.x + Math.cos(angle) * offset;
+        aimArrow.y = bow.y + Math.sin(angle) * offset;
+
         aimArrow.rotation = angle;
     }
 }
